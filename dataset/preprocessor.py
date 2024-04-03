@@ -7,7 +7,6 @@ datasets = {
     "krish":        "./spam_dataset_krishnamohanmaurya.csv",
     "mshe":         "./spam_dataset_mshenoda.csv",
     "shant":        "./spam_dataset_shantanudhakadd.csv",
-    "enronmail":    "./spam_dataset_enron.csv",
     "jack":         "./spam_dataset_jackksoncsie.csv",
     "spamassassin": "./spam_dataset_spamassassin.csv",
     "ling":         "./spam_dataset_ling.csv"
@@ -31,13 +30,6 @@ mshe = mshe.rename (columns = {"label": "label", "text": "text"})
 shant = shant[["v1", "v2"]]
 shant = shant.rename(columns = {"v1": "label", "v2": "text"})
 
-# Enron company's emaile exchange. This dataset has too much word usages of "enron" itself, so we will remove the word "enron" from the dataset
-enronmail["Message"] = enronmail["Subject"] + " " + enronmail["Message"]
-enronmail = enronmail.drop(columns=["Subject"])
-enronmail = enronmail[["Message", "Spam/Ham"]]
-enronmail = enronmail.rename(columns = {"Spam/Ham": "label", "Message": "text"})
-enronmail["text"] = enronmail["text"].apply(lambda x: x.replace("enron", ""))
-
 # Jack's data has fixed "subject: " in the text, so we will remove it
 jack =  jack.rename(columns = {"spam": "label", "text": "text"})
 jack["label"] = jack["label"].map({0: "ham", 1: "spam"})
@@ -57,10 +49,16 @@ ling["label"] = ling["label"].map({0: "ham", 1: "spam"})
 
 # Merge the datasets with progress, and shuffle it, and export
 tqdm.pandas()
-merged = pd.concat([krish, mshe, shant, enronmail, jack, spamassassin, ling], ignore_index = True).progress_apply(lambda x: x.str.strip() if x.dtype == "object" else x)
-merged = merged.sample(frac = 1).reset_index(drop = True).progress_apply(lambda x: x.str.strip() if x.dtype == "object" else x)
+merged = pd.concat([krish, mshe, shant, jack, spamassassin, ling], ignore_index = True).progress_apply(lambda x: x.str.strip() if x.dtype == "object" else x)
+merged = merged.apply(lambda x: x.str.replace('\n', ' ') if x.dtype == 'object' else x)     # Remove newline characters
+merged = merged[~merged['text'].str.contains('enron', case=False)]                          # Think enron emails are not appropriate for training.
+
 print(f"Number of rows in the dataset: {merged.shape[0]}")
 
+# Drop the duplicated rows that the "text" field is the same in the dataset
+merged = merged.drop_duplicates(subset = "text", keep = False)
+
+# Export the merged dataset
 exportFilePath = "./spameyes_dataset.csv"
 if os.path.exists(exportFilePath):
     os.remove(exportFilePath)
